@@ -1,0 +1,18 @@
+{
+  "todos": [],
+  "stats": {
+    "today": 0,
+    "completed": 0,
+    "efficiency": 0,
+    "timer": "00:00:00"
+  },
+  "logs": [
+    // Example log:
+    {
+      "event": "add-todo",
+      "details": "Added todo: sample",
+      "t": "2025-12-06 20:12"
+    }
+    // More logs in this array...
+  ]
+}
