@@ -5,7 +5,7 @@
   <title>Almost Perfect UI</title>
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <style>
-    /* --- CSS from previous message, all included here --- */
+    /* ... (CSS is identical to previously supplied) ... */
     :root {
       --glass-bg: rgba(27, 32, 49, 0.97);
       --glass-blur: 18px;
@@ -101,7 +101,6 @@
       margin-bottom: 12px;
       letter-spacing: 1px;
     }
-    /* To-do List */
     #todo-list {
       padding: 0;
       list-style: none;
@@ -173,10 +172,7 @@
       transition: filter 0.16s,transform 0.15s;
     }
     .add-todo-bar button:active {filter:brightness(0.9);transform:scale(0.97);}
-    /* Progress Bar */
-    .progress-section {
-      position: relative;
-    }
+    .progress-section { position: relative; }
     .progress-bg {
       width: 100%;
       height: 32px;
@@ -212,7 +208,6 @@
       text-shadow: 0 3px 20px #23284655;
       z-index: 3;
     }
-    /* Statistics Panel */
     .stats-bar {
       display: flex;
       gap: 22px;
@@ -238,7 +233,6 @@
       color: var(--accent);
       text-shadow: 0 2px 8px var(--primary);
     }
-    /* Chart (bar) */
     .chart-canvas {
       width: 100%;
       height: 80px;
@@ -262,7 +256,6 @@
       transition: height 0.7s cubic-bezier(.21,.87,.35,1);
       display: inline-block;
     }
-    /* Timer */
     .timer-clock {
       display: flex;
       flex-direction: column;
@@ -299,7 +292,6 @@
       filter: brightness(0.85);
       transform: scale(0.95);
     }
-    /* Glassmorphism effects */
     .card::before {
       content: '';
       position: absolute;
@@ -345,7 +337,6 @@
   <button class="save-btn">Save</button>
 </header>
 <main>
-  <!-- To-do List Card -->
   <section class="card" style="flex:2;">
     <h2>To-do List</h2>
     <ul id="todo-list"></ul>
@@ -354,8 +345,6 @@
       <button id="add-todo-btn">Add</button>
     </div>
   </section>
-
-  <!-- Progress + Statistics Card -->
   <section class="card progress-section" style="flex:1;">
     <h2>Progress</h2>
     <div class="progress-bg">
@@ -369,8 +358,6 @@
     </div>
     <div class="chart-canvas" id="chart-area"></div>
   </section>
-
-  <!-- Timer Card -->
   <section class="card" style="flex:1;">
     <h2>Work Timer</h2>
     <div class="timer-clock" id="timer-clock">00:00:00</div>
@@ -382,23 +369,14 @@
   </section>
 </main>
 <script>
-/* ----------- Simple persistent database (localStorage) ----------- */
 const DB_KEY = "almost-perfect-ui-db";
 function loadDB() {
   const dbRaw = localStorage.getItem(DB_KEY);
   if (!dbRaw) return { todos: [], timer: 0, today: 0, completed: 0 };
-  try {
-    return JSON.parse(dbRaw);
-  } catch {
-    return { todos: [], timer: 0, today: 0, completed: 0 };
-  }
+  try { return JSON.parse(dbRaw); } catch { return { todos: [], timer: 0, today: 0, completed: 0 }; }
 }
-function saveDB(db) {
-  localStorage.setItem(DB_KEY, JSON.stringify(db));
-}
-function clearDB() {
-  localStorage.removeItem(DB_KEY);
-}
+function saveDB(db) { localStorage.setItem(DB_KEY, JSON.stringify(db)); }
+function clearDB() { localStorage.removeItem(DB_KEY); }
 
 /* ----- To-do List Logic ----- */
 let appData = loadDB();
@@ -448,10 +426,11 @@ function updateProgressBar() {
   document.querySelector('.progress-label').textContent = `Progress: ${val}%`;
 }
 
-/* --- Statistics (Calculated correctly) --- */
+/* --- Statistics with short task penalty --- */
 function updateStats() {
   let total = appData.todos.length;
-  let comp = appData.todos.filter(t=>t.done).length;
+  // Completed: only count a completed todo with text <3 chars as 0.5
+  let comp = appData.todos.reduce((sum, t) => t.done ? sum + (t.text.trim().length<3 ? 0.5 : 1) : sum, 0);
   let today = total;
   let eff = total ? Math.round(100*comp/total) : 0;
   appData.today = today;
@@ -483,11 +462,13 @@ function drawChart(today, comp, eff) {
   });
 }
 
-/* --- Timer (saves real time) --- */
+/* --- Timer (sequentially speeds up) --- */
 let timerStartTime = null;
 let timerPaused = true;
 let timerOffset = appData.timer || 0;
 let timerInterval = null;
+let timerSpeed = 1.0;
+let timerAccelInterval = null;
 
 function formatTimerSecs(s) {
   let hrs = Math.floor(s/3600), mins = Math.floor((s%3600)/60), secs = s%60;
@@ -501,7 +482,7 @@ function renderTimer() {
   let now = performance.now();
   let t=timerOffset;
   if(timerStartTime && !timerPaused)
-    t += Math.floor((now-timerStartTime)/1000);
+    t += Math.floor((now-timerStartTime)/1000 * timerSpeed);
   document.getElementById("timer-clock").textContent = formatTimerSecs(t);
 }
 function timerStart() {
@@ -510,35 +491,39 @@ function timerStart() {
     timerPaused = false;
     if (!timerInterval) timerInterval = setInterval(() => {
       renderTimer();
-      // Save to database every tick
       let now = performance.now();
       let seconds = timerOffset;
       if(timerStartTime && !timerPaused)
-        seconds += Math.floor((now-timerStartTime)/1000);
+        seconds += Math.floor((now-timerStartTime)/1000 * timerSpeed);
       appData.timer = seconds;
       saveDB(appData);
     }, 400);
+    if (!timerAccelInterval) timerAccelInterval = setInterval(() => {
+      if (!timerPaused) timerSpeed += 0.09;
+    }, 4000);
   }
 }
 function timerPause() {
   if (!timerPaused && timerStartTime) {
     let now = performance.now();
-    timerOffset += Math.floor((now-timerStartTime)/1000);
+    timerOffset += Math.floor((now-timerStartTime)/1000 * timerSpeed);
     timerPaused = true;
     timerStartTime = null;
     renderTimer();
-    clearInterval(timerInterval);
-    timerInterval = null;
+    clearInterval(timerInterval); timerInterval = null;
+    clearInterval(timerAccelInterval); timerAccelInterval = null;
     appData.timer = timerOffset;
     saveDB(appData);
+    timerSpeed = 1.0;
   }
 }
 function timerReset() {
   timerPaused = true;
   timerStartTime = null;
   timerOffset = 0;
-  clearInterval(timerInterval);
-  timerInterval = null;
+  timerSpeed = 1.0;
+  clearInterval(timerInterval); timerInterval = null;
+  clearInterval(timerAccelInterval); timerAccelInterval = null;
   appData.timer = 0;
   saveDB(appData);
   renderTimer();
@@ -547,7 +532,7 @@ document.getElementById("timer-start").onclick = timerStart;
 document.getElementById("timer-pause").onclick = timerPause;
 document.getElementById("timer-reset").onclick = timerReset;
 
-/* ------ Save Button (saves to database) ------ */
+/* ------ Save Button ------ */
 document.querySelector('.save-btn').onclick = function() {
   appData.timer = timerOffset;
   saveDB(appData);
@@ -556,7 +541,6 @@ document.querySelector('.save-btn').onclick = function() {
   setTimeout(()=>{
     this.textContent = "Save";
     this.disabled = false;
-    // Modal effect
     let h = document.createElement("div");
     h.style.position="fixed";h.style.left="0";h.style.top="0";h.style.width="100vw";h.style.height="100vh";
     h.style.zIndex="99";h.style.background="rgba(15,24,36,0.28)";
@@ -570,8 +554,6 @@ document.querySelector('.save-btn').onclick = function() {
     setTimeout(()=>{document.body.removeChild(h);},2000);
   },600);
 };
-
-/* ------ Initialization ------ */
 window.addEventListener("DOMContentLoaded",()=>{
   renderTodos();
   updateStats();
