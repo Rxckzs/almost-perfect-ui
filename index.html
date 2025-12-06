@@ -632,6 +632,7 @@ ${db.todos.map((t,i) => `  - [${t.done ? "✔":" "}] (${i+1}) "${t.text}"`).join
 <b>Actions/History:</b>
 ${(db.logs||[]).slice(-10).map(log => `[${log.t}] (${log.event}) ${log.details}`).join('\n') || '  (no log entries)'}
       </pre>
+      <button id="export-db-btn" style="margin-top: 22px; padding: 10px 18px; background: linear-gradient(90deg,#13c2e9,#ff63da); color: #22232a; border-radius:9px; font-size:1.07em; border:none; cursor:pointer;">Export Logs & Database</button>
     </div>
   `;
   modalBg.appendChild(modal);
@@ -641,6 +642,27 @@ ${(db.logs||[]).slice(-10).map(log => `[${log.t}] (${log.event}) ${log.details}`
   };
   modalBg.onclick = e => {
     if (e.target === modalBg) document.body.removeChild(modalBg);
+  };
+  // Export logic
+  modal.querySelector('#export-db-btn').onclick = () => {
+    let data = {
+      todos: db.todos,
+      stats: {
+        today: db.today??0,
+        completed: db.completed??0,
+        efficiency: db.efficiency??0,
+        timer: formatTimerSecs(db.timer??0)
+      },
+      logs: db.logs || []
+    };
+    let blob = new Blob([JSON.stringify(data,null,2)], {type: 'application/json'});
+    let url = URL.createObjectURL(blob);
+    let a = document.createElement('a');
+    a.href = url;
+    a.download = "db_logs.json";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url)},1500);
   };
 }
 /* --- Logo click handler --- */
