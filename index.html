@@ -5,7 +5,7 @@
   <title>Almost Perfect UI</title>
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <style>
-    /* ... (CSS is identical to previously supplied) ... */
+    /* --- Existing glass SaaS CSS --- */
     :root {
       --glass-bg: rgba(27, 32, 49, 0.97);
       --glass-blur: 18px;
@@ -26,11 +26,7 @@
       color: #f3f4f8;
       font-family: var(--font);
     }
-    body {
-      display: flex;
-      flex-direction: column;
-      min-height: 100vh;
-    }
+    body { display: flex; flex-direction: column; min-height: 100vh; }
     header {
       height: var(--header-height);
       padding: 0 32px;
@@ -50,7 +46,11 @@
       background: linear-gradient(90deg,var(--primary),var(--accent));
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
+      cursor: pointer;
+      user-select: none;
+      transition: scale 0.2s;
     }
+    header h1:hover { text-shadow: 0 2px 22px var(--accent), 0 0px 4px var(--primary); scale: 1.032;}
     header .save-btn {
       outline: none;
       border: none;
@@ -64,10 +64,7 @@
       cursor: pointer;
       transition: filter 0.18s, transform 0.2s;
     }
-    header .save-btn:active {
-      filter: brightness(90%);
-      transform: scale(0.96);
-    }
+    header .save-btn:active { filter: brightness(90%); transform: scale(0.96);}
     main {
       flex: 1;
       display: grid;
@@ -320,6 +317,63 @@
     .card:hover::after {
       opacity: 0.50;
     }
+    /* --- Modal styles --- */
+    .modal-bg {
+      position: fixed; left: 0; top: 0; width: 100vw; height: 100vh;
+      background: rgba(14, 17, 36, 0.52);
+      z-index: 99999;
+      display: flex; align-items: center; justify-content: center;
+      backdrop-filter: blur(10px);
+    }
+    .modal {
+      background: rgba(34, 42, 59, 0.95);
+      border-radius: 24px;
+      box-shadow: 0 6px 38px #1a2b45cc;
+      padding: 44px 38px 32px 38px;
+      color: #fff;
+      min-width: 340px;
+      max-width: 90vw;
+      font-size: 1.03em;
+      max-height: 86vh;
+      overflow: auto;
+      position: relative;
+      animation: modalIn 0.42s cubic-bezier(.27,.85,.46,1.02);
+    }
+    @keyframes modalIn {
+      from { transform: scale(0.88) translateY(34px); opacity: 0;}
+      to {   transform: scale(1)   translateY(0px);   opacity: 1;}
+    }
+    .modal h3 {
+      margin-top: 0; margin-bottom: 20px;
+      background: linear-gradient(90deg, #13c2e9 70%, #ff63da 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      font-size: 1.35em;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+    }
+    .close-modal {
+      position: absolute; right: 28px; top: 28px;
+      color: var(--danger);
+      background: none;
+      border: none;
+      font-size: 1.48em;
+      font-weight: bold;
+      cursor: pointer;
+      opacity: 0.7;
+      transition: opacity 0.15s;
+      z-index: 2;
+    }
+    .close-modal:hover { opacity: 1;}
+    .modal-content pre {
+      background: #1a2437e3;
+      padding: 13px 14px;
+      border-radius: 13px;
+      font-size: 0.98em;
+      box-shadow: 0 1.5px 8px #23264a40;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
     @media(max-width: 950px){
       main{grid-gap:20px;padding:36px 8px 18px 8px;}
       .card{padding:22px 3px 14px 4px;}
@@ -333,7 +387,7 @@
 </head>
 <body>
 <header>
-  <h1>Almost Perfect UI</h1>
+  <h1 id="logo-btn">Almost Perfect UI</h1>
   <button class="save-btn">Save</button>
 </header>
 <main>
@@ -372,12 +426,20 @@
 const DB_KEY = "almost-perfect-ui-db";
 function loadDB() {
   const dbRaw = localStorage.getItem(DB_KEY);
-  if (!dbRaw) return { todos: [], timer: 0, today: 0, completed: 0 };
-  try { return JSON.parse(dbRaw); } catch { return { todos: [], timer: 0, today: 0, completed: 0 }; }
+  if (!dbRaw) return { todos: [], timer: 0, today: 0, completed: 0, logs: [] };
+  try { return JSON.parse(dbRaw); } catch { return { todos: [], timer: 0, today: 0, completed: 0, logs: [] }; }
 }
-function saveDB(db) { localStorage.setItem(DB_KEY, JSON.stringify(db)); }
-function clearDB() { localStorage.removeItem(DB_KEY); }
-
+function saveDB(db) {
+  localStorage.setItem(DB_KEY, JSON.stringify(db));
+}
+function addLog(event, details) {
+  appData.logs = appData.logs || [];
+  appData.logs.push({event, details, t: new Date().toLocaleString()});
+  saveDB(appData);
+}
+function clearDB() {
+  localStorage.removeItem(DB_KEY);
+}
 /* ----- To-do List Logic ----- */
 let appData = loadDB();
 
@@ -390,7 +452,7 @@ function renderTodos() {
     if (t.done) li.classList.add('completed');
     li.onclick = () => {
       appData.todos[i].done = !appData.todos[i].done;
-      saveDB(appData);
+      addLog("toggle-todo", "Toggled todo: "+t.text);
       renderTodos(); updateStats();
     };
     let delBtn = document.createElement("button");
@@ -398,25 +460,23 @@ function renderTodos() {
     delBtn.textContent = "×";
     delBtn.onclick = e => {
       e.stopPropagation();
+      addLog("delete-todo", "Deleted todo: " + t.text);
       appData.todos.splice(i,1);
-      saveDB(appData);
       renderTodos(); updateStats();
     };
     li.appendChild(delBtn);
     list.appendChild(li);
   });
 }
-
 document.getElementById("add-todo-btn").onclick = () => {
   let val = document.getElementById("todo-input").value.trim();
   if (val) {
     appData.todos.push({ text: val, done: false });
+    addLog("add-todo", "Added todo: " + val);
     document.getElementById("todo-input").value = "";
-    saveDB(appData);
     renderTodos(); updateStats();
   }
 };
-
 /* --- Progress Bar (Reflects true progress) --- */
 function updateProgressBar() {
   let total = appData.todos.length;
@@ -425,16 +485,15 @@ function updateProgressBar() {
   document.querySelector('.progress-fill').style.width = `${val}%`;
   document.querySelector('.progress-label').textContent = `Progress: ${val}%`;
 }
-
-/* --- Statistics with short task penalty --- */
+/* --- Stats: completed/efficiency calculation includes short task penalty --- */
 function updateStats() {
   let total = appData.todos.length;
-  // Completed: only count a completed todo with text <3 chars as 0.5
   let comp = appData.todos.reduce((sum, t) => t.done ? sum + (t.text.trim().length<3 ? 0.5 : 1) : sum, 0);
   let today = total;
   let eff = total ? Math.round(100*comp/total) : 0;
   appData.today = today;
   appData.completed = comp;
+  appData.efficiency = eff;
   document.getElementById('stat-today').textContent = today;
   document.getElementById('stat-comp').textContent = comp;
   document.getElementById('stat-eff').textContent = eff+"%";
@@ -442,8 +501,6 @@ function updateStats() {
   updateProgressBar();
   saveDB(appData);
 }
-
-/* ---- Chart: Bar graph for stats ---- */
 function drawChart(today, comp, eff) {
   const c = document.getElementById("chart-area");
   c.innerHTML="";
@@ -461,8 +518,7 @@ function drawChart(today, comp, eff) {
     c.appendChild(div);
   });
 }
-
-/* --- Timer (sequentially speeds up) --- */
+/* --- Timer (sequentially speeds up, logs pause/stop/reset) --- */
 let timerStartTime = null;
 let timerPaused = true;
 let timerOffset = appData.timer || 0;
@@ -514,6 +570,7 @@ function timerPause() {
     clearInterval(timerAccelInterval); timerAccelInterval = null;
     appData.timer = timerOffset;
     saveDB(appData);
+    addLog("pause-timer",`Paused timer at ${formatTimerSecs(timerOffset)}`);
     timerSpeed = 1.0;
   }
 }
@@ -527,11 +584,11 @@ function timerReset() {
   appData.timer = 0;
   saveDB(appData);
   renderTimer();
+  addLog("reset-timer", "Timer reset");
 }
 document.getElementById("timer-start").onclick = timerStart;
 document.getElementById("timer-pause").onclick = timerPause;
 document.getElementById("timer-reset").onclick = timerReset;
-
 /* ------ Save Button ------ */
 document.querySelector('.save-btn').onclick = function() {
   appData.timer = timerOffset;
@@ -554,13 +611,44 @@ document.querySelector('.save-btn').onclick = function() {
     setTimeout(()=>{document.body.removeChild(h);},2000);
   },600);
 };
+/* ------ Database Modal ------ */
+function showDatabaseModal() {
+  let db = loadDB();
+  let modalBg = document.createElement('div');
+  modalBg.className = 'modal-bg';
+  let modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.innerHTML = `
+    <button class="close-modal" title="Close">&times;</button>
+    <h3>Almost Perfect UI Database</h3>
+    <div class="modal-content">
+      <pre><b>To-do List:</b>
+${db.todos.map((t,i) => `  - [${t.done ? "✔":" "}] (${i+1}) "${t.text}"`).join('\n') || '  (no todos)'}
+<b>Stats:</b>
+  Tasks Today: ${db.today??0}
+  Completed   : ${db.completed??0}
+  Efficiency  : ${db.efficiency??0}%
+  Timer       : ${formatTimerSecs(db.timer??0)}
+<b>Actions/History:</b>
+${(db.logs||[]).slice(-10).map(log => `[${log.t}] (${log.event}) ${log.details}`).join('\n') || '  (no log entries)'}
+      </pre>
+    </div>
+  `;
+  modalBg.appendChild(modal);
+  document.body.appendChild(modalBg);
+  modal.querySelector('.close-modal').onclick = () => {
+    document.body.removeChild(modalBg);
+  };
+  modalBg.onclick = e => {
+    if (e.target === modalBg) document.body.removeChild(modalBg);
+  };
+}
+/* --- Logo click handler --- */
+document.getElementById('logo-btn').onclick = showDatabaseModal;
+/* ------ Initialization ------ */
 window.addEventListener("DOMContentLoaded",()=>{
-  renderTodos();
-  updateStats();
-  renderTimer();
-  window.addEventListener("resize",()=>drawChart(
-    appData.today, appData.completed, parseInt(document.getElementById('stat-eff').textContent)
-  ));
+  renderTodos(); updateStats(); renderTimer();
+  window.addEventListener("resize",()=>drawChart(appData.today, appData.completed, parseInt(document.getElementById('stat-eff').textContent)));
 });
 </script>
 </body>
